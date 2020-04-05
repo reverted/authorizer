@@ -31,13 +31,13 @@ type notaryOpt func(*notary)
 
 func NotaryFromEnv() notaryOpt {
 	return func(self *notary) {
-		if url := os.Getenv("ELAPSE_AUTH_TOKEN_KEY_URL"); url != "" {
+		if url := os.Getenv("REVERTED_AUTH_TOKEN_KEY_URL"); url != "" {
 			WithTarget(url)(self)
 		}
-		if key := os.Getenv("ELAPSE_AUTH_TOKEN_KEY"); key != "" {
+		if key := os.Getenv("REVERTED_AUTH_TOKEN_KEY"); key != "" {
 			WithPublicKeyContents(key)(self)
 		}
-		WithAudience(strings.Split(os.Getenv("ELAPSE_AUTH_TOKEN_AUDS"), ",")...)(self)
+		WithAudience(strings.Split(os.Getenv("REVERTED_AUTH_TOKEN_AUDS"), ",")...)(self)
 	}
 }
 

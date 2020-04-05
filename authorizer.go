@@ -25,7 +25,7 @@ type opt func(*authorizer)
 func FromEnv() opt {
 	return func(self *authorizer) {
 		WithNotary(NewNotaryFromEnv(self.Logger))(self)
-		IncludeClaims(strings.Split(os.Getenv("ELAPSE_AUTH_TOKEN_INCLUDE_CLAIMS"), ",")...)(self)
+		IncludeClaims(strings.Split(os.Getenv("REVERTED_AUTH_TOKEN_INCLUDE_CLAIMS"), ",")...)(self)
 	}
 }
 
