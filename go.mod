@@ -3,6 +3,7 @@ module github.com/reverted/authorizer
 go 1.13
 
 require (
+	github.com/golang/protobuf v1.3.2 // indirect
 	github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega v1.9.0
 	github.com/reverted/logger v0.0.0-20200221025935-a50968d96f28

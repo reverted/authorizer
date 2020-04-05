@@ -40,6 +40,14 @@ func Methods(methods ...string) routeOpt {
 	}
 }
 
+func Read(resource string) route {
+	return Route(resource, Methods("GET"))
+}
+
+func Write(resource string) route {
+	return Route(resource, Methods("POST", "PUT", "DELETE"))
+}
+
 func Get(resource string) route {
 	return Route(resource, Methods("GET"))
 }
