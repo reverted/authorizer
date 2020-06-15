@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"os"
 	"strings"
 )
 
@@ -21,13 +20,6 @@ var (
 )
 
 type opt func(*authorizer)
-
-func FromEnv() opt {
-	return func(self *authorizer) {
-		WithNotary(NewNotaryFromEnv(self.Logger))(self)
-		IncludeClaims(strings.Split(os.Getenv("REVERTED_AUTH_TOKEN_INCLUDE_CLAIMS"), ",")...)(self)
-	}
-}
 
 func WithNotary(notary Notary) opt {
 	return func(self *authorizer) {
@@ -89,13 +81,8 @@ func IncludeClaimAs(from string, to string) opt {
 	}
 }
 
-func NewFromEnv(logger Logger) *authorizer {
-	return New(logger, FromEnv())
-}
-
-func New(logger Logger, opts ...opt) *authorizer {
+func New(opts ...opt) *authorizer {
 	auth := &authorizer{
-		Logger:       logger,
 		ClaimMapping: map[string]string{},
 	}
 
@@ -111,7 +98,6 @@ type Notary interface {
 }
 
 type authorizer struct {
-	Logger
 	Notary
 	ClaimMapping map[string]string
 }

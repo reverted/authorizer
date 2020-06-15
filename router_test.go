@@ -8,7 +8,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/reverted/authorizer"
-	"github.com/reverted/logger"
 )
 
 type Router interface {
@@ -24,10 +23,6 @@ var _ = Describe("Router", func() {
 
 	BeforeEach(func() {
 		router = authorizer.NewRouter(
-			logger.New("test",
-				logger.Writer(GinkgoWriter),
-				logger.Level(logger.Debug),
-			),
 			authorizer.Routes(
 				authorizer.Route("some-resource", authorizer.Methods("some-method")),
 			),

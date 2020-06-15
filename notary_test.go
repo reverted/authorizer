@@ -9,9 +9,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/reverted/authorizer"
-	"github.com/reverted/logger"
 	"github.com/onsi/gomega/ghttp"
+	"github.com/reverted/authorizer"
 
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
@@ -79,10 +78,6 @@ var _ = Describe("Notary", func() {
 		Context("when the public key is not set", func() {
 			BeforeEach(func() {
 				notary = authorizer.NewNotary(
-					logger.New("test",
-						logger.Writer(GinkgoWriter),
-						logger.Level(logger.Debug),
-					),
 					authorizer.WithAudience("audience"),
 					authorizer.WithTarget(server.URL()+"/token_keys"),
 				)
@@ -128,10 +123,6 @@ var _ = Describe("Notary", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				notary = authorizer.NewNotary(
-					logger.New("test",
-						logger.Writer(GinkgoWriter),
-						logger.Level(logger.Debug),
-					),
 					authorizer.WithPublicKey(&randomKey.PublicKey),
 					authorizer.WithAudience("audience"),
 					authorizer.WithTarget(server.URL()+"/token_keys"),
@@ -175,10 +166,6 @@ var _ = Describe("Notary", func() {
 		Context("when the public key is set", func() {
 			BeforeEach(func() {
 				notary = authorizer.NewNotary(
-					logger.New("test",
-						logger.Writer(GinkgoWriter),
-						logger.Level(logger.Debug),
-					),
 					authorizer.WithPublicKey(&privateKey.PublicKey),
 					authorizer.WithAudience("audience-1", "audience-2"),
 					authorizer.WithTarget(server.URL()+"/token_keys"),

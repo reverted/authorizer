@@ -4,6 +4,10 @@ import (
 	"net/http"
 )
 
+type Logger interface {
+	Error(a ...interface{})
+}
+
 type Authorizer interface {
 	Authorize(r *http.Request) error
 }

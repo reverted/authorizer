@@ -64,9 +64,8 @@ func Delete(resource string) route {
 	return Route(resource, Methods("DELETE"))
 }
 
-func NewRouter(logger Logger, opts ...routerOpt) *router {
+func NewRouter(opts ...routerOpt) *router {
 	router := &router{
-		Logger:       logger,
 		Routes:       map[string]route{},
 		Unrestricted: []access{},
 	}
@@ -79,7 +78,6 @@ func NewRouter(logger Logger, opts ...routerOpt) *router {
 }
 
 type router struct {
-	Logger
 	Routes       map[string]route
 	Unrestricted []access
 }

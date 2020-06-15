@@ -6,10 +6,9 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"log"
 	"net/http"
 	"net/url"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -29,23 +28,11 @@ var (
 
 type notaryOpt func(*notary)
 
-func NotaryFromEnv() notaryOpt {
-	return func(self *notary) {
-		if url := os.Getenv("REVERTED_AUTH_TOKEN_KEY_URL"); url != "" {
-			WithTarget(url)(self)
-		}
-		if key := os.Getenv("REVERTED_AUTH_TOKEN_KEY"); key != "" {
-			WithPublicKeyContents(key)(self)
-		}
-		WithAudience(strings.Split(os.Getenv("REVERTED_AUTH_TOKEN_AUDS"), ",")...)(self)
-	}
-}
-
 func WithTarget(target string) notaryOpt {
 	return func(self *notary) {
 		var err error
 		if self.URL, err = url.Parse(target); err != nil {
-			self.Logger.Fatal(err)
+			log.Fatal(err)
 		}
 	}
 }
@@ -67,21 +54,21 @@ func WithPublicKeyContents(value string) notaryOpt {
 		block, _ := pem.Decode([]byte(value))
 
 		if block == nil {
-			self.Logger.Fatal(errors.New("Invalid public key: " + value))
+			log.Fatal(errors.New("Invalid public key: " + value))
 		}
 
 		if block.Type != "PUBLIC KEY" {
-			self.Logger.Fatal(errors.New("Invalid block type: " + block.Type))
+			log.Fatal(errors.New("Invalid block type: " + block.Type))
 		}
 
 		parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
 		if err != nil {
-			self.Logger.Fatal(err)
+			log.Fatal(err)
 		}
 
 		publicKey, ok := parsed.(*rsa.PublicKey)
 		if !ok {
-			self.Logger.Fatal(errors.New("Invalid public key type"))
+			log.Fatal(errors.New("Invalid public key type"))
 		}
 
 		self.PublicKey = publicKey
@@ -94,12 +81,8 @@ func WithAudience(auds ...string) notaryOpt {
 	}
 }
 
-func NewNotaryFromEnv(logger Logger) *notary {
-	return NewNotary(logger, NotaryFromEnv())
-}
-
-func NewNotary(logger Logger, opts ...notaryOpt) *notary {
-	notary := &notary{Logger: logger}
+func NewNotary(opts ...notaryOpt) *notary {
+	notary := &notary{}
 
 	for _, opt := range opts {
 		opt(notary)
@@ -114,7 +97,6 @@ func NewNotary(logger Logger, opts ...notaryOpt) *notary {
 
 type notary struct {
 	sync.Mutex
-	Logger
 	*url.URL
 	*http.Client
 	*rsa.PublicKey

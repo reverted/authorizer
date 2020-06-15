@@ -8,7 +8,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/reverted/authorizer"
-	"github.com/reverted/logger"
 )
 
 type Authorizer interface {
@@ -28,10 +27,6 @@ var _ = Describe("Authorizer", func() {
 		fakeNotary = new(FakeNotary)
 
 		authz = authorizer.New(
-			logger.New("test",
-				logger.Writer(GinkgoWriter),
-				logger.Level(logger.Debug),
-			),
 			authorizer.WithNotary(fakeNotary),
 		)
 	})
@@ -108,10 +103,6 @@ var _ = Describe("Authorizer", func() {
 			Context("when configured to include the subject", func() {
 				BeforeEach(func() {
 					authz = authorizer.New(
-						logger.New("test",
-							logger.Writer(GinkgoWriter),
-							logger.Level(logger.Debug),
-						),
 						authorizer.WithNotary(fakeNotary),
 						authorizer.IncludeSubjectAs("some-key"),
 					)
