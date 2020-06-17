@@ -23,7 +23,6 @@ var _ = Describe("Handler", func() {
 
 		mockCtrl       *gomock.Controller
 		mockAuthorizer *mocks.MockAuthorizer
-		mockRouter     *mocks.MockRouter
 		mockHandler    *mocks.MockHandler
 
 		handler http.Handler
@@ -32,7 +31,6 @@ var _ = Describe("Handler", func() {
 	BeforeEach(func() {
 		mockCtrl = gomock.NewController(GinkgoT())
 		mockAuthorizer = mocks.NewMockAuthorizer(mockCtrl)
-		mockRouter = mocks.NewMockRouter(mockCtrl)
 		mockHandler = mocks.NewMockHandler(mockCtrl)
 
 		handler = authorizer.NewHandler(
@@ -41,7 +39,6 @@ var _ = Describe("Handler", func() {
 				logger.Level(logger.Debug),
 			),
 			mockAuthorizer,
-			mockRouter,
 			mockHandler,
 		)
 	})
@@ -73,29 +70,13 @@ var _ = Describe("Handler", func() {
 				mockAuthorizer.EXPECT().Authorize(req).Return(nil)
 			})
 
-			Context("when the router fails", func() {
+			Context("when it forwards the request to the handler", func() {
 				BeforeEach(func() {
-					mockRouter.EXPECT().Route(req).Return(errors.New("nope"))
+					mockHandler.EXPECT().ServeHTTP(rec, req)
 				})
 
-				It("responds with Not Found", func() {
-					Expect(rec.Result().StatusCode).To(Equal(http.StatusNotFound))
-				})
-			})
-
-			Context("when the router succeeds", func() {
-				BeforeEach(func() {
-					mockRouter.EXPECT().Route(req).Return(nil)
-				})
-
-				Context("when it forwards the request to the handler", func() {
-					BeforeEach(func() {
-						mockHandler.EXPECT().ServeHTTP(rec, req)
-					})
-
-					It("succeeds", func() {
-						Expect(rec.Result().StatusCode).To(Equal(http.StatusOK))
-					})
+				It("succeeds", func() {
+					Expect(rec.Result().StatusCode).To(Equal(http.StatusOK))
 				})
 			})
 		})
