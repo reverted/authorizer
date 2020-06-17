@@ -16,8 +16,18 @@ type Router interface {
 	Route(r *http.Request) error
 }
 
-func NewHandler(logger Logger, authorizer Authorizer, router Router, next http.Handler) *handler {
-	return &handler{logger, authorizer, router, next}
+func NewHandler(
+	logger Logger,
+	authorizer Authorizer,
+	router Router,
+	next http.Handler,
+) *handler {
+	return &handler{
+		logger,
+		authorizer,
+		router,
+		next,
+	}
 }
 
 type handler struct {

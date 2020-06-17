@@ -7,7 +7,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/golang/mock/gomock"
 	"github.com/reverted/authorizer"
+	"github.com/reverted/authorizer/mocks"
 )
 
 type Authorizer interface {
@@ -17,17 +19,20 @@ type Authorizer interface {
 var _ = Describe("Authorizer", func() {
 
 	var (
-		err        error
-		req        *http.Request
-		authz      Authorizer
-		fakeNotary *FakeNotary
+		err   error
+		req   *http.Request
+		authz Authorizer
+
+		mockCtrl   *gomock.Controller
+		mockNotary *mocks.MockNotary
 	)
 
 	BeforeEach(func() {
-		fakeNotary = new(FakeNotary)
+		mockCtrl = gomock.NewController(GinkgoT())
+		mockNotary = mocks.NewMockNotary(mockCtrl)
 
 		authz = authorizer.New(
-			authorizer.WithNotary(fakeNotary),
+			authorizer.WithNotary(mockNotary),
 		)
 	})
 
@@ -76,13 +81,9 @@ var _ = Describe("Authorizer", func() {
 				req.Header.Set("Authorization", "bearer token")
 			})
 
-			It("invokes the notary with the token", func() {
-				Expect(fakeNotary.NotarizeCallArgs()).To(Equal("token"))
-			})
-
 			Context("when the notary fails to verify the signature", func() {
 				BeforeEach(func() {
-					fakeNotary.NotarizeReturns(nil, errors.New("nope"))
+					mockNotary.EXPECT().Notarize("token").Return(nil, errors.New("nope"))
 				})
 
 				It("errors", func() {
@@ -92,7 +93,7 @@ var _ = Describe("Authorizer", func() {
 
 			Context("when the notary succcessfully verifies the signature", func() {
 				BeforeEach(func() {
-					fakeNotary.NotarizeReturns(map[string]interface{}{}, nil)
+					mockNotary.EXPECT().Notarize("token").Return(map[string]interface{}{}, nil)
 				})
 
 				It("succeeds", func() {
@@ -103,11 +104,11 @@ var _ = Describe("Authorizer", func() {
 			Context("when configured to include the subject", func() {
 				BeforeEach(func() {
 					authz = authorizer.New(
-						authorizer.WithNotary(fakeNotary),
+						authorizer.WithNotary(mockNotary),
 						authorizer.IncludeSubjectAs("some-key"),
 					)
 
-					fakeNotary.NotarizeReturns(map[string]interface{}{
+					mockNotary.EXPECT().Notarize("token").Return(map[string]interface{}{
 						"sub": "some-value",
 					}, nil)
 				})
@@ -120,23 +121,3 @@ var _ = Describe("Authorizer", func() {
 		})
 	})
 })
-
-type FakeNotary struct {
-	token string
-	data  map[string]interface{}
-	err   error
-}
-
-func (self *FakeNotary) Notarize(token string) (map[string]interface{}, error) {
-	self.token = token
-	return self.data, self.err
-}
-
-func (self *FakeNotary) NotarizeReturns(data map[string]interface{}, err error) {
-	self.data = data
-	self.err = err
-}
-
-func (self *FakeNotary) NotarizeCallArgs() string {
-	return self.token
-}

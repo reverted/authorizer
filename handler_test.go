@@ -8,7 +8,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/golang/mock/gomock"
 	"github.com/reverted/authorizer"
+	"github.com/reverted/authorizer/mocks"
 	"github.com/reverted/logger"
 )
 
@@ -19,26 +21,28 @@ var _ = Describe("Handler", func() {
 		req *http.Request
 		rec *httptest.ResponseRecorder
 
-		fakeAuthorizer *FakeAuthorizer
-		fakeRouter     *FakeRouter
-		fakeHandler    *FakeHandler
+		mockCtrl       *gomock.Controller
+		mockAuthorizer *mocks.MockAuthorizer
+		mockRouter     *mocks.MockRouter
+		mockHandler    *mocks.MockHandler
 
 		handler http.Handler
 	)
 
 	BeforeEach(func() {
-		fakeAuthorizer = new(FakeAuthorizer)
-		fakeRouter = new(FakeRouter)
-		fakeHandler = new(FakeHandler)
+		mockCtrl = gomock.NewController(GinkgoT())
+		mockAuthorizer = mocks.NewMockAuthorizer(mockCtrl)
+		mockRouter = mocks.NewMockRouter(mockCtrl)
+		mockHandler = mocks.NewMockHandler(mockCtrl)
 
 		handler = authorizer.NewHandler(
 			logger.New("test",
 				logger.Writer(GinkgoWriter),
 				logger.Level(logger.Debug),
 			),
-			fakeAuthorizer,
-			fakeRouter,
-			fakeHandler,
+			mockAuthorizer,
+			mockRouter,
+			mockHandler,
 		)
 	})
 
@@ -56,7 +60,7 @@ var _ = Describe("Handler", func() {
 
 		Context("when the authorizer fails", func() {
 			BeforeEach(func() {
-				fakeAuthorizer.AuthorizeReturns(errors.New("nope"))
+				mockAuthorizer.EXPECT().Authorize(req).Return(errors.New("nope"))
 			})
 
 			It("responds with Unauthorized", func() {
@@ -66,12 +70,12 @@ var _ = Describe("Handler", func() {
 
 		Context("when the authorizer succeeds", func() {
 			BeforeEach(func() {
-				fakeAuthorizer.AuthorizeReturns(nil)
+				mockAuthorizer.EXPECT().Authorize(req).Return(nil)
 			})
 
 			Context("when the router fails", func() {
 				BeforeEach(func() {
-					fakeRouter.RouteReturns(errors.New("nope"))
+					mockRouter.EXPECT().Route(req).Return(errors.New("nope"))
 				})
 
 				It("responds with Not Found", func() {
@@ -81,65 +85,19 @@ var _ = Describe("Handler", func() {
 
 			Context("when the router succeeds", func() {
 				BeforeEach(func() {
-					fakeRouter.RouteReturns(nil)
+					mockRouter.EXPECT().Route(req).Return(nil)
 				})
 
-				It("forwards the request to the handler", func() {
-					recArg, reqArg := fakeHandler.ServeHTTPCallArgs()
-					Expect(recArg).To(Equal(rec))
-					Expect(reqArg).To(Equal(req))
+				Context("when it forwards the request to the handler", func() {
+					BeforeEach(func() {
+						mockHandler.EXPECT().ServeHTTP(rec, req)
+					})
+
+					It("succeeds", func() {
+						Expect(rec.Result().StatusCode).To(Equal(http.StatusOK))
+					})
 				})
 			})
 		})
 	})
 })
-
-type FakeAuthorizer struct {
-	request *http.Request
-	err     error
-}
-
-func (self *FakeAuthorizer) Authorize(r *http.Request) error {
-	self.request = r
-	return self.err
-}
-
-func (self *FakeAuthorizer) AuthorizeReturns(err error) {
-	self.err = err
-}
-
-func (self *FakeAuthorizer) AuthorizeCallArgs() *http.Request {
-	return self.request
-}
-
-type FakeRouter struct {
-	request *http.Request
-	err     error
-}
-
-func (self *FakeRouter) Route(r *http.Request) error {
-	self.request = r
-	return self.err
-}
-
-func (self *FakeRouter) RouteReturns(err error) {
-	self.err = err
-}
-
-func (self *FakeRouter) RouteCallArgs() *http.Request {
-	return self.request
-}
-
-type FakeHandler struct {
-	request *http.Request
-	writer  http.ResponseWriter
-}
-
-func (self *FakeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	self.writer = w
-	self.request = r
-}
-
-func (self *FakeHandler) ServeHTTPCallArgs() (http.ResponseWriter, *http.Request) {
-	return self.writer, self.request
-}
