@@ -65,7 +65,7 @@ var _ = Describe("Notary", func() {
 		JustBeforeEach(func() {
 			var signer jose.Signer
 			signingKey := jose.SigningKey{Algorithm: jose.RS256, Key: privateKey}
-			signer, err = jose.NewSigner(signingKey, (&jose.SignerOptions{}).WithType("JWT"))
+			signer, err = jose.NewSigner(signingKey, (&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", "some-key"))
 			Expect(err).NotTo(HaveOccurred())
 
 			var token string
@@ -75,140 +75,43 @@ var _ = Describe("Notary", func() {
 			res, err = notary.Notarize(token)
 		})
 
-		Context("when the public key is not set", func() {
+		BeforeEach(func() {
+			notary = authorizer.NewNotary(
+				authorizer.WithAudience("audience"),
+				authorizer.WithTarget(server.URL()+"/token_keys"),
+			)
+		})
+
+		Context("when it fails to fetch the public key", func() {
 			BeforeEach(func() {
-				notary = authorizer.NewNotary(
-					authorizer.WithAudience("audience"),
-					authorizer.WithTarget(server.URL()+"/token_keys"),
+				server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/token_keys"),
+						ghttp.RespondWith(http.StatusInternalServerError, nil),
+					),
 				)
 			})
 
-			Context("when it fails to fetch the public key", func() {
-				BeforeEach(func() {
-					server.AppendHandlers(
-						ghttp.CombineHandlers(
-							ghttp.VerifyRequest("GET", "/token_keys"),
-							ghttp.RespondWith(http.StatusInternalServerError, nil),
-						),
-					)
-				})
-
-				It("errors", func() {
-					Expect(err).To(HaveOccurred())
-				})
-			})
-
-			Context("when it successfully fetches the public key", func() {
-				BeforeEach(func() {
-					server.AppendHandlers(
-						ghttp.CombineHandlers(
-							ghttp.VerifyRequest("GET", "/token_keys"),
-							ghttp.RespondWithJSONEncoded(http.StatusOK, jsonWebKeySet),
-						),
-					)
-				})
-
-				It("validates the token", func() {
-					Expect(err).NotTo(HaveOccurred())
-					Expect(res["sub"]).To(Equal("subject"))
-					Expect(res["iss"]).To(Equal("issuer"))
-					Expect(res["aud"]).To(ConsistOf("audience"))
-				})
+			It("errors", func() {
+				Expect(err).To(HaveOccurred())
 			})
 		})
 
-		Context("when the public key is not correct", func() {
+		Context("when it successfully fetches the public key", func() {
 			BeforeEach(func() {
-				randomKey, err := rsa.GenerateKey(rand.Reader, 2048)
+				server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/token_keys"),
+						ghttp.RespondWithJSONEncoded(http.StatusOK, jsonWebKeySet),
+					),
+				)
+			})
+
+			It("validates the token", func() {
 				Expect(err).NotTo(HaveOccurred())
-
-				notary = authorizer.NewNotary(
-					authorizer.WithPublicKey(&randomKey.PublicKey),
-					authorizer.WithAudience("audience"),
-					authorizer.WithTarget(server.URL()+"/token_keys"),
-				)
-			})
-
-			Context("when it fails to fetch the public key", func() {
-				BeforeEach(func() {
-					server.AppendHandlers(
-						ghttp.CombineHandlers(
-							ghttp.VerifyRequest("GET", "/token_keys"),
-							ghttp.RespondWith(http.StatusInternalServerError, nil),
-						),
-					)
-				})
-
-				It("errors", func() {
-					Expect(err).To(HaveOccurred())
-				})
-			})
-
-			Context("when it successfully fetches the public key", func() {
-				BeforeEach(func() {
-					server.AppendHandlers(
-						ghttp.CombineHandlers(
-							ghttp.VerifyRequest("GET", "/token_keys"),
-							ghttp.RespondWithJSONEncoded(http.StatusOK, jsonWebKeySet),
-						),
-					)
-				})
-
-				It("validates the token", func() {
-					Expect(err).NotTo(HaveOccurred())
-					Expect(res["sub"]).To(Equal("subject"))
-					Expect(res["iss"]).To(Equal("issuer"))
-					Expect(res["aud"]).To(ConsistOf("audience"))
-				})
-			})
-		})
-
-		Context("when the public key is set", func() {
-			BeforeEach(func() {
-				notary = authorizer.NewNotary(
-					authorizer.WithPublicKey(&privateKey.PublicKey),
-					authorizer.WithAudience("audience-1", "audience-2"),
-					authorizer.WithTarget(server.URL()+"/token_keys"),
-				)
-			})
-
-			Context("when the token is expired", func() {
-				BeforeEach(func() {
-					claims.Expiry = jwt.NewNumericDate(time.Now().Add(-time.Minute))
-				})
-
-				It("errors", func() {
-					Expect(err).To(Equal(authorizer.ErrTokenExpired))
-				})
-			})
-
-			Context("when the token is not expired", func() {
-				BeforeEach(func() {
-					claims.Expiry = jwt.NewNumericDate(time.Now().Add(time.Minute))
-				})
-
-				Context("when the audience is not valid", func() {
-					BeforeEach(func() {
-						claims.Audience = jwt.Audience{"not-audience"}
-					})
-
-					It("errors", func() {
-						Expect(err).To(Equal(authorizer.ErrInvalidAudience))
-					})
-				})
-
-				Context("when the audience is valid", func() {
-					BeforeEach(func() {
-						claims.Audience = jwt.Audience{"audience-1"}
-					})
-
-					It("validates the token", func() {
-						Expect(err).NotTo(HaveOccurred())
-						Expect(res["sub"]).To(Equal("subject"))
-						Expect(res["iss"]).To(Equal("issuer"))
-						Expect(res["aud"]).To(ConsistOf("audience-1"))
-					})
-				})
+				Expect(res["sub"]).To(Equal("subject"))
+				Expect(res["iss"]).To(Equal("issuer"))
+				Expect(res["aud"]).To(ConsistOf("audience"))
 			})
 		})
 	})

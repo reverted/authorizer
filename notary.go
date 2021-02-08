@@ -1,10 +1,7 @@
 package authorizer
 
 import (
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"log"
 	"net/http"
@@ -43,38 +40,6 @@ func WithHttpClient(client *http.Client) notaryOpt {
 	}
 }
 
-func WithPublicKey(key *rsa.PublicKey) notaryOpt {
-	return func(self *notary) {
-		self.PublicKey = key
-	}
-}
-
-func WithPublicKeyContents(value string) notaryOpt {
-	return func(self *notary) {
-		block, _ := pem.Decode([]byte(value))
-
-		if block == nil {
-			log.Fatal(errors.New("Invalid public key: " + value))
-		}
-
-		if block.Type != "PUBLIC KEY" {
-			log.Fatal(errors.New("Invalid block type: " + block.Type))
-		}
-
-		parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		publicKey, ok := parsed.(*rsa.PublicKey)
-		if !ok {
-			log.Fatal(errors.New("Invalid public key type"))
-		}
-
-		self.PublicKey = publicKey
-	}
-}
-
 func WithAudience(auds ...string) notaryOpt {
 	return func(self *notary) {
 		self.Audience = auds
@@ -99,7 +64,7 @@ type notary struct {
 	sync.Mutex
 	*url.URL
 	*http.Client
-	*rsa.PublicKey
+	*jose.JSONWebKeySet
 	Audience []string
 }
 
@@ -109,7 +74,7 @@ func (self *notary) Notarize(token string) (map[string]interface{}, error) {
 
 	switch err {
 	case ErrNoPublicKey, ErrInvalidSignature:
-		if err = self.refreshPublicKey(); err != nil {
+		if err = self.refreshKeySet(); err != nil {
 			return nil, err
 		}
 		return self.notarize(token)
@@ -120,7 +85,7 @@ func (self *notary) Notarize(token string) (map[string]interface{}, error) {
 
 func (self *notary) notarize(token string) (map[string]interface{}, error) {
 
-	if self.PublicKey == nil {
+	if self.JSONWebKeySet == nil {
 		return nil, ErrNoPublicKey
 	}
 
@@ -132,7 +97,7 @@ func (self *notary) notarize(token string) (map[string]interface{}, error) {
 	var claims jwt.Claims
 	var raw map[string]interface{}
 
-	if err = parsed.Claims(self.PublicKey, &claims, &raw); err != nil {
+	if err = parsed.Claims(self.JSONWebKeySet, &claims, &raw); err != nil {
 		return nil, ErrInvalidSignature
 	}
 
@@ -149,20 +114,20 @@ func (self *notary) notarize(token string) (map[string]interface{}, error) {
 	return nil, ErrInvalidAudience
 }
 
-func (self *notary) refreshPublicKey() error {
+func (self *notary) refreshKeySet() error {
 	self.Lock()
 	defer self.Unlock()
 
-	publicKey, err := self.fetchPublicKey()
+	keySet, err := self.fetchKeySet()
 	if err != nil {
 		return err
 	}
 
-	self.PublicKey = publicKey
+	self.JSONWebKeySet = keySet
 	return nil
 }
 
-func (self *notary) fetchPublicKey() (*rsa.PublicKey, error) {
+func (self *notary) fetchKeySet() (*jose.JSONWebKeySet, error) {
 
 	if self.URL == nil {
 		return nil, ErrNoTargetSet
@@ -188,5 +153,5 @@ func (self *notary) fetchPublicKey() (*rsa.PublicKey, error) {
 		return nil, ErrNoKeysFound
 	}
 
-	return data.Keys[0].Public().Key.(*rsa.PublicKey), nil
+	return &data, nil
 }
