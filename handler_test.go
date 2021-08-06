@@ -1,6 +1,7 @@
 package authorizer_test
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -40,6 +41,8 @@ var _ = Describe("Handler", func() {
 			),
 			mockAuthorizer,
 			mockHandler,
+			authorizer.WithBasicAuthCredential("user", "pass"),
+			authorizer.WithAuthorizedClaim("key", "value"),
 		)
 	})
 
@@ -53,6 +56,33 @@ var _ = Describe("Handler", func() {
 
 		JustBeforeEach(func() {
 			handler.ServeHTTP(rec, req)
+		})
+
+		Context("when basic auth credentials do not match", func() {
+			BeforeEach(func() {
+				req.SetBasicAuth("not-user", "not-pass")
+				mockAuthorizer.EXPECT().Authorize(req).Return(nil)
+			})
+
+			It("responds with Unauthorized", func() {
+				Expect(rec.Result().StatusCode).To(Equal(http.StatusUnauthorized))
+			})
+		})
+
+		Context("when basic auth credentials match", func() {
+			BeforeEach(func() {
+				req.SetBasicAuth("user", "pass")
+			})
+
+			Context("it forwards the request to the handler", func() {
+				BeforeEach(func() {
+					mockHandler.EXPECT().ServeHTTP(rec, req)
+				})
+
+				It("succeeds", func() {
+					Expect(rec.Result().StatusCode).To(Equal(http.StatusOK))
+				})
+			})
 		})
 
 		Context("when the authorizer fails", func() {
@@ -70,13 +100,70 @@ var _ = Describe("Handler", func() {
 				mockAuthorizer.EXPECT().Authorize(req).Return(nil)
 			})
 
-			Context("when it forwards the request to the handler", func() {
+			Context("when the authorized claims do not match", func() {
 				BeforeEach(func() {
-					mockHandler.EXPECT().ServeHTTP(rec, req)
+					ctx := context.WithValue(context.Background(), "not-key", "not-value")
+					*req = *req.WithContext(ctx)
 				})
 
-				It("succeeds", func() {
-					Expect(rec.Result().StatusCode).To(Equal(http.StatusOK))
+				It("responds with Unauthorized", func() {
+					Expect(rec.Result().StatusCode).To(Equal(http.StatusUnauthorized))
+				})
+			})
+
+			Context("when the authorized claims match", func() {
+				BeforeEach(func() {
+					ctx := context.WithValue(context.Background(), "key", "value")
+					*req = *req.WithContext(ctx)
+				})
+
+				Context("it forwards the request to the handler", func() {
+					BeforeEach(func() {
+						mockHandler.EXPECT().ServeHTTP(rec, req)
+					})
+
+					It("succeeds", func() {
+						Expect(rec.Result().StatusCode).To(Equal(http.StatusOK))
+					})
+				})
+			})
+		})
+
+		Context("when no creds or claims are provided", func() {
+			BeforeEach(func() {
+				handler = authorizer.NewHandler(
+					logger.New("test",
+						logger.Writer(GinkgoWriter),
+						logger.Level(logger.Debug),
+					),
+					mockAuthorizer,
+					mockHandler,
+				)
+			})
+
+			Context("when the authorizer fails", func() {
+				BeforeEach(func() {
+					mockAuthorizer.EXPECT().Authorize(req).Return(errors.New("nope"))
+				})
+
+				It("responds with Unauthorized", func() {
+					Expect(rec.Result().StatusCode).To(Equal(http.StatusUnauthorized))
+				})
+			})
+
+			Context("when the authorizer succeeds", func() {
+				BeforeEach(func() {
+					mockAuthorizer.EXPECT().Authorize(req).Return(nil)
+				})
+
+				Context("it forwards the request to the handler", func() {
+					BeforeEach(func() {
+						mockHandler.EXPECT().ServeHTTP(rec, req)
+					})
+
+					It("succeeds", func() {
+						Expect(rec.Result().StatusCode).To(Equal(http.StatusOK))
+					})
 				})
 			})
 		})

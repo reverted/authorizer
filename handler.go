@@ -12,25 +12,56 @@ type Authorizer interface {
 	Authorize(r *http.Request) error
 }
 
+type handlerOpt func(self *handler)
+
+func WithBasicAuthCredential(user, pass string) handlerOpt {
+	return func(self *handler) {
+		self.BasicAuthCredentials = append(self.BasicAuthCredentials, BasicAuthCredential{user, pass})
+	}
+}
+
+func WithAuthorizedClaim(key, value string) handlerOpt {
+	return func(self *handler) {
+		self.AuthorizedClaims = append(self.AuthorizedClaims, AuthorizedClaim{key, value})
+	}
+}
+
 func NewHandler(
 	logger Logger,
 	authorizer Authorizer,
 	next http.Handler,
+	opts ...handlerOpt,
 ) *handler {
-	return &handler{
-		logger,
-		authorizer,
-		next,
+	handler := &handler{
+		Logger:     logger,
+		Authorizer: authorizer,
+		Handler:    next,
 	}
+
+	for _, opt := range opts {
+		opt(handler)
+	}
+
+	return handler
 }
 
 type handler struct {
 	Logger
 	Authorizer
 	http.Handler
+
+	BasicAuthCredentials []BasicAuthCredential
+	AuthorizedClaims     []AuthorizedClaim
 }
 
 func (self *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	for _, cred := range self.BasicAuthCredentials {
+		if cred.Matches(r) {
+			self.Handler.ServeHTTP(w, r)
+			return
+		}
+	}
 
 	if err := self.Authorizer.Authorize(r); err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -38,5 +69,37 @@ func (self *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	for _, claim := range self.AuthorizedClaims {
+		if claim.Matches(r) {
+			self.Handler.ServeHTTP(w, r)
+			return
+		}
+	}
+
+	hasCreds := len(self.BasicAuthCredentials) > 0
+	hasClaims := len(self.AuthorizedClaims) > 0
+
+	if hasCreds || hasClaims {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
 	self.Handler.ServeHTTP(w, r)
+}
+
+type BasicAuthCredential struct {
+	Username, Password string
+}
+
+func (self BasicAuthCredential) Matches(r *http.Request) bool {
+	user, pass, ok := r.BasicAuth()
+	return ok && self.Username == user && self.Password == pass
+}
+
+type AuthorizedClaim struct {
+	Key, Value string
+}
+
+func (self AuthorizedClaim) Matches(r *http.Request) bool {
+	return r.Context().Value(self.Key) == self.Value
 }
