@@ -3,6 +3,7 @@ package authorizer_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/reverted/authorizer"
 	"github.com/reverted/authorizer/mocks"
-	"github.com/reverted/logger"
 )
 
 var _ = Describe("Handler", func() {
@@ -35,10 +35,7 @@ var _ = Describe("Handler", func() {
 		mockHandler = mocks.NewMockHandler(mockCtrl)
 
 		handler = authorizer.NewHandler(
-			logger.New("test",
-				logger.Writer(GinkgoWriter),
-				logger.Level(logger.Debug),
-			),
+			newLogger(),
 			mockAuthorizer,
 			mockHandler,
 			authorizer.WithBasicAuthCredential("user", "pass"),
@@ -132,10 +129,7 @@ var _ = Describe("Handler", func() {
 		Context("when no creds or claims are provided", func() {
 			BeforeEach(func() {
 				handler = authorizer.NewHandler(
-					logger.New("test",
-						logger.Writer(GinkgoWriter),
-						logger.Level(logger.Debug),
-					),
+					newLogger(),
 					mockAuthorizer,
 					mockHandler,
 				)
@@ -169,3 +163,13 @@ var _ = Describe("Handler", func() {
 		})
 	})
 })
+
+func newLogger() *logger {
+	return &logger{}
+}
+
+type logger struct{}
+
+func (self *logger) Error(args ...interface{}) {
+	fmt.Fprintln(GinkgoWriter, args...)
+}
