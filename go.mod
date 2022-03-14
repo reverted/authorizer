@@ -6,7 +6,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.18.1
-	github.com/reverted/logger v0.1.0
+	github.com/reverted/logger v0.1.1
 	gopkg.in/square/go-jose.v2 v2.6.0
 )
 
