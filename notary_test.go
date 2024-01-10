@@ -9,11 +9,10 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/onsi/gomega/ghttp"
 	"github.com/reverted/authorizer"
-
-	"gopkg.in/square/go-jose.v2"
-	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 type Notary interface {
@@ -111,7 +110,7 @@ var _ = Describe("Notary", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(res["sub"]).To(Equal("subject"))
 				Expect(res["iss"]).To(Equal("issuer"))
-				Expect(res["aud"]).To(ConsistOf("audience"))
+				Expect(res["aud"]).To(Equal("audience"))
 			})
 		})
 	})
