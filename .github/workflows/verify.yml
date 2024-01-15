@@ -37,3 +37,20 @@ jobs:
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v1
+
+    - name: Generate Git Tag
+      if: ${{ github.event_name == 'push' }}
+      run: |
+        NEW_TAG=$(git tag --list --sort=-version:refname | head -n1 | awk -F. '{ printf "%s.%s.%s", $1, $2, $3+1 }')
+        if [ -z "$NEW_TAG" ]; then
+          NEW_TAG=v0.0.1
+        fi
+        echo "NEW_TAG=$NEW_TAG" >> $GITHUB_ENV
+
+    - name: Push Git Tag
+      if: ${{ env.NEW_TAG }}
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "github-actions@users.noreply.github.com"
+        git tag $NEW_TAG
+        git push origin $NEW_TAG
