@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: write
+
 jobs:
   analyze:
     name: verify
@@ -21,11 +24,6 @@ jobs:
         language: [ 'go' ]
 
     steps:
-    - name: Setup keys
-      uses: webfactory/ssh-agent@v0.8.0
-      with:
-        ssh-private-key: ${{ secrets.DEPLOY_KEY }}
-
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
