@@ -9,8 +9,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/onsi/gomega/ghttp"
 	"github.com/reverted/authorizer"
 )
@@ -68,7 +68,7 @@ var _ = Describe("Notary", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			var token string
-			token, err = jwt.Signed(signer).Claims(claims).CompactSerialize()
+			token, err = jwt.Signed(signer).Claims(claims).Serialize()
 			Expect(err).NotTo(HaveOccurred())
 
 			res, err = notary.Notarize(token)

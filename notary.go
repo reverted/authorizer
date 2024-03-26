@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 )
 
 var (
@@ -46,8 +46,17 @@ func WithAudience(auds ...string) notaryOpt {
 	}
 }
 
+func WithSignatureAlgorithm(alg string) notaryOpt {
+	return func(self *notary) {
+		self.Algorithms = append(self.Algorithms, jose.SignatureAlgorithm(alg))
+
+	}
+}
+
 func NewNotary(opts ...notaryOpt) *notary {
-	notary := &notary{}
+	notary := &notary{
+		Algorithms: []jose.SignatureAlgorithm{jose.RS256},
+	}
 
 	for _, opt := range opts {
 		opt(notary)
@@ -65,7 +74,8 @@ type notary struct {
 	*url.URL
 	*http.Client
 	*jose.JSONWebKeySet
-	Audience []string
+	Audience   []string
+	Algorithms []jose.SignatureAlgorithm
 }
 
 func (self *notary) Notarize(token string) (map[string]interface{}, error) {
@@ -89,7 +99,7 @@ func (self *notary) notarize(token string) (map[string]interface{}, error) {
 		return nil, ErrNoPublicKey
 	}
 
-	parsed, err := jwt.ParseSigned(token)
+	parsed, err := jwt.ParseSigned(token, self.Algorithms)
 	if err != nil {
 		return nil, ErrInvalidToken
 	}
