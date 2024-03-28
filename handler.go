@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"net/http"
+	"strings"
 )
 
 type Logger interface {
@@ -17,6 +18,12 @@ type handlerOpt func(self *handler)
 func WithBasicAuthCredential(user, pass string) handlerOpt {
 	return func(self *handler) {
 		self.BasicAuthCredentials = append(self.BasicAuthCredentials, BasicAuthCredential{user, pass})
+	}
+}
+
+func WithAuthorizedToken(value string) handlerOpt {
+	return func(self *handler) {
+		self.AuthorizedTokens = append(self.AuthorizedTokens, AuthorizedToken{value})
 	}
 }
 
@@ -51,6 +58,7 @@ type handler struct {
 	http.Handler
 
 	BasicAuthCredentials []BasicAuthCredential
+	AuthorizedTokens     []AuthorizedToken
 	AuthorizedClaims     []AuthorizedClaim
 }
 
@@ -58,6 +66,13 @@ func (self *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	for _, cred := range self.BasicAuthCredentials {
 		if cred.Matches(r) {
+			self.Handler.ServeHTTP(w, r)
+			return
+		}
+	}
+
+	for _, claim := range self.AuthorizedTokens {
+		if claim.Matches(r) {
 			self.Handler.ServeHTTP(w, r)
 			return
 		}
@@ -77,9 +92,10 @@ func (self *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hasCreds := len(self.BasicAuthCredentials) > 0
+	hasTokens := len(self.AuthorizedTokens) > 0
 	hasClaims := len(self.AuthorizedClaims) > 0
 
-	if hasCreds || hasClaims {
+	if hasCreds || hasTokens || hasClaims {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -94,6 +110,25 @@ type BasicAuthCredential struct {
 func (self BasicAuthCredential) Matches(r *http.Request) bool {
 	user, pass, ok := r.BasicAuth()
 	return ok && self.Username == user && self.Password == pass
+}
+
+type AuthorizedToken struct {
+	Value string
+}
+
+func (self AuthorizedToken) Matches(r *http.Request) bool {
+	header := r.Header["Authorization"]
+	if len(header) == 0 {
+		return false
+	}
+
+	parts := strings.Split(header[0], " ")
+
+	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
+		return false
+	}
+
+	return parts[1] == self.Value
 }
 
 type AuthorizedClaim struct {

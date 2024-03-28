@@ -39,6 +39,7 @@ var _ = Describe("Handler", func() {
 			mockAuthorizer,
 			mockHandler,
 			authorizer.WithBasicAuthCredential("user", "pass"),
+			authorizer.WithAuthorizedToken("token"),
 			authorizer.WithAuthorizedClaim("key", "value"),
 		)
 	})
@@ -69,6 +70,33 @@ var _ = Describe("Handler", func() {
 		Context("when basic auth credentials match", func() {
 			BeforeEach(func() {
 				req.SetBasicAuth("user", "pass")
+			})
+
+			Context("it forwards the request to the handler", func() {
+				BeforeEach(func() {
+					mockHandler.EXPECT().ServeHTTP(rec, req)
+				})
+
+				It("succeeds", func() {
+					Expect(rec.Result().StatusCode).To(Equal(http.StatusOK))
+				})
+			})
+		})
+
+		Context("when authorized token does not match", func() {
+			BeforeEach(func() {
+				req.Header.Set("Authorization", "bearer not-token")
+				mockAuthorizer.EXPECT().Authorize(req).Return(nil)
+			})
+
+			It("responds with Unauthorized", func() {
+				Expect(rec.Result().StatusCode).To(Equal(http.StatusUnauthorized))
+			})
+		})
+
+		Context("when authorized token matches", func() {
+			BeforeEach(func() {
+				req.Header.Set("Authorization", "bearer token")
 			})
 
 			Context("it forwards the request to the handler", func() {
@@ -126,7 +154,7 @@ var _ = Describe("Handler", func() {
 			})
 		})
 
-		Context("when no creds or claims are provided", func() {
+		Context("when no creds or claims or tokens are provided", func() {
 			BeforeEach(func() {
 				handler = authorizer.NewHandler(
 					newLogger(),
