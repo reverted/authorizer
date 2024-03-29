@@ -21,9 +21,11 @@ func WithBasicAuthCredential(user, pass string) handlerOpt {
 	}
 }
 
-func WithAuthorizedToken(value string) handlerOpt {
+func WithAuthorizedToken(values ...string) handlerOpt {
 	return func(self *handler) {
-		self.AuthorizedTokens = append(self.AuthorizedTokens, AuthorizedToken{value})
+		for _, value := range values {
+			self.AuthorizedTokens = append(self.AuthorizedTokens, AuthorizedToken{value})
+		}
 	}
 }
 
