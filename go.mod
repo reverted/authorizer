@@ -6,7 +6,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.0.1
 	github.com/golang/mock v1.6.0
 	github.com/onsi/ginkgo v1.16.5
-	github.com/onsi/gomega v1.32.0
+	github.com/onsi/gomega v1.33.0
 )
 
 require (
