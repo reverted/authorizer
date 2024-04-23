@@ -21,7 +21,7 @@ func WithBasicAuthCredential(user, pass string) handlerOpt {
 	}
 }
 
-func WithAuthorizedToken(values ...string) handlerOpt {
+func WithAuthorizedTokens(values ...string) handlerOpt {
 	return func(self *handler) {
 		for _, value := range values {
 			self.AuthorizedTokens = append(self.AuthorizedTokens, AuthorizedToken{value})
@@ -32,6 +32,14 @@ func WithAuthorizedToken(values ...string) handlerOpt {
 func WithAuthorizedClaim(key, value string) handlerOpt {
 	return func(self *handler) {
 		self.AuthorizedClaims = append(self.AuthorizedClaims, AuthorizedClaim{key, value})
+	}
+}
+
+func WithApiKeys(values ...string) handlerOpt {
+	return func(self *handler) {
+		for _, value := range values {
+			self.ApiKeys = append(self.ApiKeys, ApiKey{value})
+		}
 	}
 }
 
@@ -62,9 +70,27 @@ type handler struct {
 	BasicAuthCredentials []BasicAuthCredential
 	AuthorizedTokens     []AuthorizedToken
 	AuthorizedClaims     []AuthorizedClaim
+	ApiKeys              []ApiKey
 }
 
 func (self *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+	if len(self.ApiKeys) == 0 {
+		self.Serve(w, r)
+		return
+	}
+
+	for _, key := range self.ApiKeys {
+		if key.Matches(r) {
+			self.Serve(w, r)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusUnauthorized)
+}
+
+func (self *handler) Serve(w http.ResponseWriter, r *http.Request) {
 
 	for _, cred := range self.BasicAuthCredentials {
 		if cred.Matches(r) {
@@ -119,12 +145,12 @@ type AuthorizedToken struct {
 }
 
 func (self AuthorizedToken) Matches(r *http.Request) bool {
-	header := r.Header["Authorization"]
-	if len(header) == 0 {
+	header := r.Header.Get("Authorization")
+	if header == "" {
 		return false
 	}
 
-	parts := strings.Split(header[0], " ")
+	parts := strings.Split(header, " ")
 
 	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
 		return false
@@ -139,4 +165,17 @@ type AuthorizedClaim struct {
 
 func (self AuthorizedClaim) Matches(r *http.Request) bool {
 	return r.Context().Value(self.Key) == self.Value
+}
+
+type ApiKey struct {
+	Value string
+}
+
+func (self ApiKey) Matches(r *http.Request) bool {
+	header := r.Header.Get("X-Api-Key")
+	if header == "" {
+		return false
+	}
+
+	return header == self.Value
 }

@@ -39,7 +39,7 @@ var _ = Describe("Handler", func() {
 			mockAuthorizer,
 			mockHandler,
 			authorizer.WithBasicAuthCredential("user", "pass"),
-			authorizer.WithAuthorizedToken("token"),
+			authorizer.WithAuthorizedTokens("token"),
 			authorizer.WithAuthorizedClaim("key", "value"),
 		)
 	})
