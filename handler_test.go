@@ -36,8 +36,8 @@ var _ = Describe("Handler", func() {
 
 		handler = authorizer.NewHandler(
 			newLogger(),
-			mockAuthorizer,
 			mockHandler,
+			authorizer.WithAuthorizer(mockAuthorizer),
 			authorizer.WithBasicAuthCredential("user", "pass"),
 			authorizer.WithAuthorizedTokens("token"),
 			authorizer.WithAuthorizedClaim("key", "value"),
@@ -158,8 +158,8 @@ var _ = Describe("Handler", func() {
 			BeforeEach(func() {
 				handler = authorizer.NewHandler(
 					newLogger(),
-					mockAuthorizer,
 					mockHandler,
+					authorizer.WithAuthorizer(mockAuthorizer),
 				)
 			})
 

@@ -15,6 +15,12 @@ type Authorizer interface {
 
 type handlerOpt func(self *handler)
 
+func WithAuthorizer(authorizer Authorizer) handlerOpt {
+	return func(self *handler) {
+		self.Authorizer = authorizer
+	}
+}
+
 func WithBasicAuthCredential(user, pass string) handlerOpt {
 	return func(self *handler) {
 		self.BasicAuthCredentials = append(self.BasicAuthCredentials, BasicAuthCredential{user, pass})
@@ -45,13 +51,12 @@ func WithApiKeys(values ...string) handlerOpt {
 
 func NewHandler(
 	logger Logger,
-	authorizer Authorizer,
 	next http.Handler,
 	opts ...handlerOpt,
 ) *handler {
 	handler := &handler{
 		Logger:     logger,
-		Authorizer: authorizer,
+		Authorizer: New(),
 		Handler:    next,
 	}
 
