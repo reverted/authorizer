@@ -83,6 +83,7 @@ func IncludeClaimAs(from string, to string) opt {
 
 func New(opts ...opt) *authorizer {
 	auth := &authorizer{
+		Notary:       NewNotary(),
 		ClaimMapping: map[string]string{},
 	}
 
