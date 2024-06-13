@@ -41,6 +41,20 @@ func WithAuthorizedClaim(key, value string) handlerOpt {
 	}
 }
 
+func WithAuthorizedClaims(values ...AuthorizedClaim) handlerOpt {
+	return func(self *handler) {
+		self.AuthorizedClaims = append(self.AuthorizedClaims, values...)
+	}
+}
+
+func WithAuthorizedSubjects(values ...string) handlerOpt {
+	return func(self *handler) {
+		for _, value := range values {
+			self.AuthorizedClaims = append(self.AuthorizedClaims, AuthorizedClaim{"sub", value})
+		}
+	}
+}
+
 func WithApiKeys(values ...string) handlerOpt {
 	return func(self *handler) {
 		for _, value := range values {
