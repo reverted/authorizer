@@ -14,41 +14,41 @@ import (
 )
 
 var (
-	ErrNoPublicKey      = errors.New("No public key")
-	ErrInvalidToken     = errors.New("Invalid token")
-	ErrInvalidSignature = errors.New("Invalid signature")
-	ErrTokenExpired     = errors.New("Token expired")
-	ErrInvalidAudience  = errors.New("Invalid audience")
-	ErrNoTargetSet      = errors.New("No target set")
-	ErrNoKeysFound      = errors.New("No keys found")
+	ErrNoPublicKey      = errors.New("no public key")
+	ErrInvalidToken     = errors.New("invalid token")
+	ErrInvalidSignature = errors.New("invalid signature")
+	ErrTokenExpired     = errors.New("token expired")
+	ErrInvalidAudience  = errors.New("invalid audience")
+	ErrNoTargetSet      = errors.New("no target set")
+	ErrNoKeysFound      = errors.New("no keys found")
 )
 
 type notaryOpt func(*notary)
 
 func WithTarget(target string) notaryOpt {
-	return func(self *notary) {
+	return func(n *notary) {
 		var err error
-		if self.URL, err = url.Parse(target); err != nil {
+		if n.URL, err = url.Parse(target); err != nil {
 			log.Fatal(err)
 		}
 	}
 }
 
 func WithHttpClient(client *http.Client) notaryOpt {
-	return func(self *notary) {
-		self.Client = client
+	return func(n *notary) {
+		n.Client = client
 	}
 }
 
 func WithAudience(auds ...string) notaryOpt {
-	return func(self *notary) {
-		self.Audience = auds
+	return func(n *notary) {
+		n.Audience = auds
 	}
 }
 
 func WithSignatureAlgorithm(alg string) notaryOpt {
-	return func(self *notary) {
-		self.Algorithms = append(self.Algorithms, jose.SignatureAlgorithm(alg))
+	return func(n *notary) {
+		n.Algorithms = append(n.Algorithms, jose.SignatureAlgorithm(alg))
 
 	}
 }
@@ -78,28 +78,28 @@ type notary struct {
 	Algorithms []jose.SignatureAlgorithm
 }
 
-func (self *notary) Notarize(token string) (map[string]interface{}, error) {
+func (n *notary) Notarize(token string) (map[string]interface{}, error) {
 
-	raw, err := self.notarize(token)
+	raw, err := n.notarize(token)
 
 	switch err {
 	case ErrNoPublicKey, ErrInvalidSignature:
-		if err = self.refreshKeySet(); err != nil {
+		if err = n.refreshKeySet(); err != nil {
 			return nil, err
 		}
-		return self.notarize(token)
+		return n.notarize(token)
 	default:
 		return raw, err
 	}
 }
 
-func (self *notary) notarize(token string) (map[string]interface{}, error) {
+func (n *notary) notarize(token string) (map[string]interface{}, error) {
 
-	if self.JSONWebKeySet == nil {
+	if n.JSONWebKeySet == nil {
 		return nil, ErrNoPublicKey
 	}
 
-	parsed, err := jwt.ParseSigned(token, self.Algorithms)
+	parsed, err := jwt.ParseSigned(token, n.Algorithms)
 	if err != nil {
 		return nil, ErrInvalidToken
 	}
@@ -107,7 +107,7 @@ func (self *notary) notarize(token string) (map[string]interface{}, error) {
 	var claims jwt.Claims
 	var raw map[string]interface{}
 
-	if err = parsed.Claims(self.JSONWebKeySet, &claims, &raw); err != nil {
+	if err = parsed.Claims(n.JSONWebKeySet, &claims, &raw); err != nil {
 		return nil, ErrInvalidSignature
 	}
 
@@ -115,7 +115,7 @@ func (self *notary) notarize(token string) (map[string]interface{}, error) {
 		return nil, ErrTokenExpired
 	}
 
-	for _, aud := range self.Audience {
+	for _, aud := range n.Audience {
 		if claims.Audience.Contains(aud) {
 			return raw, nil
 		}
@@ -124,26 +124,26 @@ func (self *notary) notarize(token string) (map[string]interface{}, error) {
 	return nil, ErrInvalidAudience
 }
 
-func (self *notary) refreshKeySet() error {
-	self.Lock()
-	defer self.Unlock()
+func (n *notary) refreshKeySet() error {
+	n.Lock()
+	defer n.Unlock()
 
-	keySet, err := self.fetchKeySet()
+	keySet, err := n.fetchKeySet()
 	if err != nil {
 		return err
 	}
 
-	self.JSONWebKeySet = keySet
+	n.JSONWebKeySet = keySet
 	return nil
 }
 
-func (self *notary) fetchKeySet() (*jose.JSONWebKeySet, error) {
+func (n *notary) fetchKeySet() (*jose.JSONWebKeySet, error) {
 
-	if self.URL == nil {
+	if n.URL == nil {
 		return nil, ErrNoTargetSet
 	}
 
-	resp, err := self.Client.Get(self.URL.String())
+	resp, err := n.Client.Get(n.URL.String())
 	if err != nil {
 		return nil, err
 	}

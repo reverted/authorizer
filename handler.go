@@ -13,52 +13,52 @@ type Authorizer interface {
 	Authorize(r *http.Request) error
 }
 
-type handlerOpt func(self *handler)
+type handlerOpt func(h *handler)
 
 func WithAuthorizer(authorizer Authorizer) handlerOpt {
-	return func(self *handler) {
-		self.Authorizer = authorizer
+	return func(h *handler) {
+		h.Authorizer = authorizer
 	}
 }
 
 func WithBasicAuthCredential(user, pass string) handlerOpt {
-	return func(self *handler) {
-		self.BasicAuthCredentials = append(self.BasicAuthCredentials, BasicAuthCredential{user, pass})
+	return func(h *handler) {
+		h.BasicAuthCredentials = append(h.BasicAuthCredentials, BasicAuthCredential{user, pass})
 	}
 }
 
 func WithAuthorizedTokens(values ...string) handlerOpt {
-	return func(self *handler) {
+	return func(h *handler) {
 		for _, value := range values {
-			self.AuthorizedTokens = append(self.AuthorizedTokens, AuthorizedToken{value})
+			h.AuthorizedTokens = append(h.AuthorizedTokens, AuthorizedToken{value})
 		}
 	}
 }
 
 func WithAuthorizedClaim(key, value string) handlerOpt {
-	return func(self *handler) {
-		self.AuthorizedClaims = append(self.AuthorizedClaims, AuthorizedClaim{key, value})
+	return func(h *handler) {
+		h.AuthorizedClaims = append(h.AuthorizedClaims, AuthorizedClaim{key, value})
 	}
 }
 
 func WithAuthorizedClaims(values ...AuthorizedClaim) handlerOpt {
-	return func(self *handler) {
-		self.AuthorizedClaims = append(self.AuthorizedClaims, values...)
+	return func(h *handler) {
+		h.AuthorizedClaims = append(h.AuthorizedClaims, values...)
 	}
 }
 
 func WithAuthorizedSubjects(values ...string) handlerOpt {
-	return func(self *handler) {
+	return func(h *handler) {
 		for _, value := range values {
-			self.AuthorizedClaims = append(self.AuthorizedClaims, AuthorizedClaim{"sub", value})
+			h.AuthorizedClaims = append(h.AuthorizedClaims, AuthorizedClaim{"sub", value})
 		}
 	}
 }
 
 func WithApiKeys(values ...string) handlerOpt {
-	return func(self *handler) {
+	return func(h *handler) {
 		for _, value := range values {
-			self.ApiKeys = append(self.ApiKeys, ApiKey{value})
+			h.ApiKeys = append(h.ApiKeys, ApiKey{value})
 		}
 	}
 }
@@ -70,7 +70,7 @@ func NewHandler(
 ) *handler {
 	handler := &handler{
 		Logger:     logger,
-		Authorizer: New(),
+		Authorizer: NoopAuthorizer(),
 		Handler:    next,
 	}
 
@@ -92,16 +92,16 @@ type handler struct {
 	ApiKeys              []ApiKey
 }
 
-func (self *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	if len(self.ApiKeys) == 0 {
-		self.Serve(w, r)
+	if len(h.ApiKeys) == 0 {
+		h.Serve(w, r)
 		return
 	}
 
-	for _, key := range self.ApiKeys {
+	for _, key := range h.ApiKeys {
 		if key.Matches(r) {
-			self.Serve(w, r)
+			h.Serve(w, r)
 			return
 		}
 	}
@@ -109,61 +109,61 @@ func (self *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusUnauthorized)
 }
 
-func (self *handler) Serve(w http.ResponseWriter, r *http.Request) {
+func (h *handler) Serve(w http.ResponseWriter, r *http.Request) {
 
-	for _, cred := range self.BasicAuthCredentials {
+	for _, cred := range h.BasicAuthCredentials {
 		if cred.Matches(r) {
-			self.Handler.ServeHTTP(w, r)
+			h.Handler.ServeHTTP(w, r)
 			return
 		}
 	}
 
-	for _, claim := range self.AuthorizedTokens {
+	for _, claim := range h.AuthorizedTokens {
 		if claim.Matches(r) {
-			self.Handler.ServeHTTP(w, r)
+			h.Handler.ServeHTTP(w, r)
 			return
 		}
 	}
 
-	if err := self.Authorizer.Authorize(r); err != nil {
+	if err := h.Authorizer.Authorize(r); err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		self.Logger.Error(err)
+		h.Logger.Error(err)
 		return
 	}
 
-	for _, claim := range self.AuthorizedClaims {
+	for _, claim := range h.AuthorizedClaims {
 		if claim.Matches(r) {
-			self.Handler.ServeHTTP(w, r)
+			h.Handler.ServeHTTP(w, r)
 			return
 		}
 	}
 
-	hasCreds := len(self.BasicAuthCredentials) > 0
-	hasTokens := len(self.AuthorizedTokens) > 0
-	hasClaims := len(self.AuthorizedClaims) > 0
+	hasCreds := len(h.BasicAuthCredentials) > 0
+	hasTokens := len(h.AuthorizedTokens) > 0
+	hasClaims := len(h.AuthorizedClaims) > 0
 
 	if hasCreds || hasTokens || hasClaims {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
-	self.Handler.ServeHTTP(w, r)
+	h.Handler.ServeHTTP(w, r)
 }
 
 type BasicAuthCredential struct {
 	Username, Password string
 }
 
-func (self BasicAuthCredential) Matches(r *http.Request) bool {
+func (c BasicAuthCredential) Matches(r *http.Request) bool {
 	user, pass, ok := r.BasicAuth()
-	return ok && self.Username == user && self.Password == pass
+	return ok && c.Username == user && c.Password == pass
 }
 
 type AuthorizedToken struct {
 	Value string
 }
 
-func (self AuthorizedToken) Matches(r *http.Request) bool {
+func (t AuthorizedToken) Matches(r *http.Request) bool {
 	header := r.Header.Get("Authorization")
 	if header == "" {
 		return false
@@ -175,26 +175,26 @@ func (self AuthorizedToken) Matches(r *http.Request) bool {
 		return false
 	}
 
-	return parts[1] == self.Value
+	return parts[1] == t.Value
 }
 
 type AuthorizedClaim struct {
 	Key, Value string
 }
 
-func (self AuthorizedClaim) Matches(r *http.Request) bool {
-	return r.Context().Value(self.Key) == self.Value
+func (c AuthorizedClaim) Matches(r *http.Request) bool {
+	return r.Context().Value(c.Key) == c.Value
 }
 
 type ApiKey struct {
 	Value string
 }
 
-func (self ApiKey) Matches(r *http.Request) bool {
+func (k ApiKey) Matches(r *http.Request) bool {
 	header := r.Header.Get("X-Api-Key")
 	if header == "" {
 		return false
 	}
 
-	return header == self.Value
+	return header == k.Value
 }

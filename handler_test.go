@@ -198,6 +198,6 @@ func newLogger() *logger {
 
 type logger struct{}
 
-func (self *logger) Error(args ...interface{}) {
+func (l *logger) Error(args ...interface{}) {
 	fmt.Fprintln(GinkgoWriter, args...)
 }
