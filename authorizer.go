@@ -15,8 +15,8 @@ const (
 )
 
 var (
-	ErrMissingAuthorizationHeader = errors.New("Missing 'Authorization' header")
-	ErrInvalidAuthorizationHeader = errors.New("Invalid 'Authorization' header")
+	ErrMissingAuthorizationHeader = errors.New("missing 'Authorization' header")
+	ErrInvalidAuthorizationHeader = errors.New("invalid 'Authorization' header")
 )
 
 type opt func(*authorizer)
@@ -76,7 +76,7 @@ func IncludeClaims(pairs ...string) opt {
 func IncludeClaimAs(from string, to string) opt {
 	return func(a *authorizer) {
 		if from != "" && to != "" {
-			a.ClaimMapping[from] = to
+			a.ClaimMapping[to] = from
 		}
 	}
 }
@@ -128,7 +128,7 @@ func (a *authorizer) updateContext(r *http.Request, data map[string]interface{})
 
 	ctx := r.Context()
 
-	for claim, key := range a.ClaimMapping {
+	for key, claim := range a.ClaimMapping {
 		ctx = context.WithValue(ctx, key, data[claim])
 	}
 
