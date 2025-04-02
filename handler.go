@@ -35,7 +35,7 @@ func WithAuthorizedTokens(values ...string) handlerOpt {
 	}
 }
 
-func WithAuthorizedClaim(key, value string) handlerOpt {
+func WithAuthorizedClaim(key string, value any) handlerOpt {
 	return func(h *handler) {
 		h.AuthorizedClaims = append(h.AuthorizedClaims, AuthorizedClaim{key, value})
 	}
@@ -179,7 +179,8 @@ func (t AuthorizedToken) Matches(r *http.Request) bool {
 }
 
 type AuthorizedClaim struct {
-	Key, Value string
+	Key   string
+	Value any
 }
 
 func (c AuthorizedClaim) Matches(r *http.Request) bool {
