@@ -1,12 +1,15 @@
 package authorizer
 
 import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"strings"
 )
 
 type Logger interface {
-	Error(a ...interface{})
+	Error(a ...any)
 }
 
 type Authorizer interface {
@@ -118,8 +121,8 @@ func (h *handler) Serve(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	for _, claim := range h.AuthorizedTokens {
-		if claim.Matches(r) {
+	for _, token := range h.AuthorizedTokens {
+		if token.Matches(r) {
 			h.Handler.ServeHTTP(w, r)
 			return
 		}
@@ -175,7 +178,29 @@ func (t AuthorizedToken) Matches(r *http.Request) bool {
 		return false
 	}
 
-	return parts[1] == t.Value
+	if parts[1] != t.Value {
+		return false
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(parts[1])
+	if err != nil {
+		return true
+	}
+
+	var data map[string]any
+	if err = json.Unmarshal(decoded, &data); err != nil {
+		return true
+	}
+
+	ctx := r.Context()
+
+	for claim, value := range data {
+		ctx = context.WithValue(ctx, claim, value)
+	}
+
+	*r = *r.WithContext(ctx)
+
+	return true
 }
 
 type AuthorizedClaim struct {

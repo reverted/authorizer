@@ -95,7 +95,7 @@ func New(opts ...opt) *authorizer {
 }
 
 type Notary interface {
-	Notarize(string) (map[string]interface{}, error)
+	Notarize(string) (map[string]any, error)
 }
 
 type authorizer struct {
@@ -124,7 +124,7 @@ func (a *authorizer) Authorize(r *http.Request) error {
 	return a.updateContext(r, data)
 }
 
-func (a *authorizer) updateContext(r *http.Request, data map[string]interface{}) error {
+func (a *authorizer) updateContext(r *http.Request, data map[string]any) error {
 
 	ctx := r.Context()
 

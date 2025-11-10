@@ -16,7 +16,7 @@ import (
 )
 
 type Notary interface {
-	Notarize(token string) (map[string]interface{}, error)
+	Notarize(token string) (map[string]any, error)
 }
 
 var _ = Describe("Notary", func() {
@@ -25,7 +25,7 @@ var _ = Describe("Notary", func() {
 		server *ghttp.Server
 
 		err error
-		res map[string]interface{}
+		res map[string]any
 
 		privateKey    *rsa.PrivateKey
 		jsonWebKeySet jose.JSONWebKeySet

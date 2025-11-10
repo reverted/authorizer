@@ -39,7 +39,7 @@ var _ = Describe("Handler", func() {
 			mockHandler,
 			authorizer.WithAuthorizer(mockAuthorizer),
 			authorizer.WithBasicAuthCredential("user", "pass"),
-			authorizer.WithAuthorizedTokens("token"),
+			authorizer.WithAuthorizedTokens("token", "eyJjbGFpbSI6InZhbHVlIn0K"),
 			authorizer.WithAuthorizedClaim("key", "value"),
 		)
 	})
@@ -106,6 +106,26 @@ var _ = Describe("Handler", func() {
 
 				It("succeeds", func() {
 					Expect(rec.Result().StatusCode).To(Equal(http.StatusOK))
+				})
+			})
+		})
+
+		Context("when authorized token matches with claims", func() {
+			BeforeEach(func() {
+				req.Header.Set("Authorization", "bearer eyJjbGFpbSI6InZhbHVlIn0K")
+			})
+
+			Context("it forwards the request to the handler", func() {
+				BeforeEach(func() {
+					mockHandler.EXPECT().ServeHTTP(rec, req)
+				})
+
+				It("succeeds", func() {
+					Expect(rec.Result().StatusCode).To(Equal(http.StatusOK))
+				})
+
+				It("contains the correct claims", func() {
+					Expect(req.Context().Value("claim")).To(Equal("value"))
 				})
 			})
 		})
@@ -198,6 +218,6 @@ func newLogger() *logger {
 
 type logger struct{}
 
-func (l *logger) Error(args ...interface{}) {
+func (l *logger) Error(args ...any) {
 	fmt.Fprintln(GinkgoWriter, args...)
 }

@@ -93,7 +93,7 @@ var _ = Describe("Authorizer", func() {
 
 			Context("when the notary succcessfully verifies the signature", func() {
 				BeforeEach(func() {
-					mockNotary.EXPECT().Notarize("token").Return(map[string]interface{}{}, nil)
+					mockNotary.EXPECT().Notarize("token").Return(map[string]any{}, nil)
 				})
 
 				It("succeeds", func() {
@@ -108,7 +108,7 @@ var _ = Describe("Authorizer", func() {
 						authorizer.IncludeSubjectAs("some-key"),
 					)
 
-					mockNotary.EXPECT().Notarize("token").Return(map[string]interface{}{
+					mockNotary.EXPECT().Notarize("token").Return(map[string]any{
 						"sub": "some-value",
 					}, nil)
 				})

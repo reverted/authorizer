@@ -78,7 +78,7 @@ type notary struct {
 	Algorithms []jose.SignatureAlgorithm
 }
 
-func (n *notary) Notarize(token string) (map[string]interface{}, error) {
+func (n *notary) Notarize(token string) (map[string]any, error) {
 
 	raw, err := n.notarize(token)
 
@@ -93,7 +93,7 @@ func (n *notary) Notarize(token string) (map[string]interface{}, error) {
 	}
 }
 
-func (n *notary) notarize(token string) (map[string]interface{}, error) {
+func (n *notary) notarize(token string) (map[string]any, error) {
 
 	if n.JSONWebKeySet == nil {
 		return nil, ErrNoPublicKey
@@ -105,7 +105,7 @@ func (n *notary) notarize(token string) (map[string]interface{}, error) {
 	}
 
 	var claims jwt.Claims
-	var raw map[string]interface{}
+	var raw map[string]any
 
 	if err = parsed.Claims(n.JSONWebKeySet, &claims, &raw); err != nil {
 		return nil, ErrInvalidSignature
