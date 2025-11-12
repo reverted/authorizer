@@ -1,7 +1,6 @@
 package authorizer_test
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -41,6 +40,8 @@ var _ = Describe("Handler", func() {
 			authorizer.WithBasicAuthCredential("user", "pass"),
 			authorizer.WithAuthorizedTokens("token", "eyJjbGFpbSI6InZhbHVlIn0K"),
 			authorizer.WithAuthorizedClaim("key", "value"),
+			authorizer.IncludeClaimInContext("key"),
+			authorizer.IncludeClaimInContext("claim"),
 		)
 	})
 
@@ -59,7 +60,7 @@ var _ = Describe("Handler", func() {
 		Context("when basic auth credentials do not match", func() {
 			BeforeEach(func() {
 				req.SetBasicAuth("not-user", "not-pass")
-				mockAuthorizer.EXPECT().Authorize(req).Return(nil)
+				mockAuthorizer.EXPECT().Authorize(req).Return(nil, nil)
 			})
 
 			It("responds with Unauthorized", func() {
@@ -86,7 +87,7 @@ var _ = Describe("Handler", func() {
 		Context("when authorized token does not match", func() {
 			BeforeEach(func() {
 				req.Header.Set("Authorization", "bearer not-token")
-				mockAuthorizer.EXPECT().Authorize(req).Return(nil)
+				mockAuthorizer.EXPECT().Authorize(req).Return(nil, nil)
 			})
 
 			It("responds with Unauthorized", func() {
@@ -132,7 +133,7 @@ var _ = Describe("Handler", func() {
 
 		Context("when the authorizer fails", func() {
 			BeforeEach(func() {
-				mockAuthorizer.EXPECT().Authorize(req).Return(errors.New("nope"))
+				mockAuthorizer.EXPECT().Authorize(req).Return(nil, errors.New("nope"))
 			})
 
 			It("responds with Unauthorized", func() {
@@ -141,14 +142,9 @@ var _ = Describe("Handler", func() {
 		})
 
 		Context("when the authorizer succeeds", func() {
-			BeforeEach(func() {
-				mockAuthorizer.EXPECT().Authorize(req).Return(nil)
-			})
-
 			Context("when the authorized claims do not match", func() {
 				BeforeEach(func() {
-					ctx := context.WithValue(context.Background(), "not-key", "not-value")
-					*req = *req.WithContext(ctx)
+					mockAuthorizer.EXPECT().Authorize(req).Return(map[string]any{"not-key": "not-value"}, nil)
 				})
 
 				It("responds with Unauthorized", func() {
@@ -158,8 +154,7 @@ var _ = Describe("Handler", func() {
 
 			Context("when the authorized claims match", func() {
 				BeforeEach(func() {
-					ctx := context.WithValue(context.Background(), "key", "value")
-					*req = *req.WithContext(ctx)
+					mockAuthorizer.EXPECT().Authorize(req).Return(map[string]any{"key": "value"}, nil)
 				})
 
 				Context("it forwards the request to the handler", func() {
@@ -185,7 +180,7 @@ var _ = Describe("Handler", func() {
 
 			Context("when the authorizer fails", func() {
 				BeforeEach(func() {
-					mockAuthorizer.EXPECT().Authorize(req).Return(errors.New("nope"))
+					mockAuthorizer.EXPECT().Authorize(req).Return(nil, errors.New("nope"))
 				})
 
 				It("responds with Unauthorized", func() {
@@ -195,7 +190,7 @@ var _ = Describe("Handler", func() {
 
 			Context("when the authorizer succeeds", func() {
 				BeforeEach(func() {
-					mockAuthorizer.EXPECT().Authorize(req).Return(nil)
+					mockAuthorizer.EXPECT().Authorize(req).Return(nil, nil)
 				})
 
 				Context("it forwards the request to the handler", func() {

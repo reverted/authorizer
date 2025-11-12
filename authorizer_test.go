@@ -13,7 +13,7 @@ import (
 )
 
 type Authorizer interface {
-	Authorize(r *http.Request) error
+	Authorize(r *http.Request) (map[string]any, error)
 }
 
 var _ = Describe("Authorizer", func() {
@@ -22,6 +22,7 @@ var _ = Describe("Authorizer", func() {
 		err   error
 		req   *http.Request
 		authz Authorizer
+		res   map[string]any
 
 		mockCtrl   *gomock.Controller
 		mockNotary *mocks.MockNotary
@@ -43,7 +44,7 @@ var _ = Describe("Authorizer", func() {
 		})
 
 		JustBeforeEach(func() {
-			err = authz.Authorize(req)
+			res, err = authz.Authorize(req)
 		})
 
 		Context("when the authorization header is missing", func() {
@@ -97,25 +98,21 @@ var _ = Describe("Authorizer", func() {
 				})
 
 				It("succeeds", func() {
+					Expect(len(res)).To(Equal(0))
 					Expect(err).NotTo(HaveOccurred())
 				})
 			})
 
 			Context("when configured to include the subject", func() {
 				BeforeEach(func() {
-					authz = authorizer.New(
-						authorizer.WithNotary(mockNotary),
-						authorizer.IncludeSubjectAs("some-key"),
-					)
-
 					mockNotary.EXPECT().Notarize("token").Return(map[string]any{
 						"sub": "some-value",
 					}, nil)
 				})
 
 				It("updates the context with the subject", func() {
-					value := req.Context().Value("some-key")
-					Expect(value).To(Equal("some-value"))
+					Expect(len(res)).To(Equal(1))
+					Expect(res["sub"]).To(Equal("some-value"))
 				})
 			})
 		})

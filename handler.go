@@ -13,7 +13,7 @@ type Logger interface {
 }
 
 type Authorizer interface {
-	Authorize(r *http.Request) error
+	Authorize(r *http.Request) (map[string]any, error)
 }
 
 type handlerOpt func(h *handler)
@@ -66,15 +66,70 @@ func WithApiKeys(values ...string) handlerOpt {
 	}
 }
 
+func IncludeIssuerInContext() handlerOpt {
+	return IncludeClaimInContextAs(issKey, issKey)
+}
+
+func IncludeIssuerInContextAs(key string) handlerOpt {
+	return IncludeClaimInContextAs(issKey, key)
+}
+
+func IncludeSubjectInContext() handlerOpt {
+	return IncludeClaimInContextAs(subKey, subKey)
+}
+
+func IncludeSubjectInContextAs(key string) handlerOpt {
+	return IncludeClaimInContextAs(subKey, key)
+}
+
+func IncludeAudienceInContext() handlerOpt {
+	return IncludeClaimInContextAs(audKey, audKey)
+}
+
+func IncludeAudienceInContextAs(key string) handlerOpt {
+	return IncludeClaimInContextAs(audKey, key)
+}
+
+func IncludeExpirationInContext() handlerOpt {
+	return IncludeClaimInContextAs(expKey, expKey)
+}
+
+func IncludeExpirationInContextAs(key string) handlerOpt {
+	return IncludeClaimInContextAs(expKey, key)
+}
+
+func IncludeClaimInContext(key string) handlerOpt {
+	return IncludeClaimInContextAs(key, key)
+}
+
+func IncludeClaimsInContext(pairs ...string) handlerOpt {
+	return func(h *handler) {
+		for _, pair := range pairs {
+			if parts := strings.Split(pair, ":"); len(parts) == 2 {
+				IncludeClaimInContextAs(parts[0], parts[1])(h)
+			}
+		}
+	}
+}
+
+func IncludeClaimInContextAs(from string, to string) handlerOpt {
+	return func(h *handler) {
+		if from != "" && to != "" {
+			h.ClaimMapping[to] = from
+		}
+	}
+}
+
 func NewHandler(
 	logger Logger,
 	next http.Handler,
 	opts ...handlerOpt,
 ) *handler {
 	handler := &handler{
-		Logger:     logger,
-		Authorizer: NoopAuthorizer(),
-		Handler:    next,
+		Logger:       logger,
+		Authorizer:   NoopAuthorizer(),
+		Handler:      next,
+		ClaimMapping: map[string]string{},
 	}
 
 	for _, opt := range opts {
@@ -93,6 +148,7 @@ type handler struct {
 	AuthorizedTokens     []AuthorizedToken
 	AuthorizedClaims     []AuthorizedClaim
 	ApiKeys              []ApiKey
+	ClaimMapping         map[string]string
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -122,20 +178,24 @@ func (h *handler) Serve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, token := range h.AuthorizedTokens {
-		if token.Matches(r) {
+		if claims, matches := token.Matches(r); matches {
+			h.updateContext(r, claims)
 			h.Handler.ServeHTTP(w, r)
 			return
 		}
 	}
 
-	if err := h.Authorizer.Authorize(r); err != nil {
+	claims, err := h.Authorizer.Authorize(r)
+	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		h.Logger.Error(err)
 		return
+	} else {
+		h.updateContext(r, claims)
 	}
 
 	for _, claim := range h.AuthorizedClaims {
-		if claim.Matches(r) {
+		if claim.Matches(r, claims) {
 			h.Handler.ServeHTTP(w, r)
 			return
 		}
@@ -153,6 +213,23 @@ func (h *handler) Serve(w http.ResponseWriter, r *http.Request) {
 	h.Handler.ServeHTTP(w, r)
 }
 
+func (h *handler) updateContext(r *http.Request, data map[string]any) error {
+
+	if data == nil {
+		return nil
+	}
+
+	ctx := r.Context()
+
+	for key, claim := range h.ClaimMapping {
+		ctx = context.WithValue(ctx, key, data[claim])
+	}
+
+	*r = *r.WithContext(ctx)
+
+	return nil
+}
+
 type BasicAuthCredential struct {
 	Username, Password string
 }
@@ -166,41 +243,33 @@ type AuthorizedToken struct {
 	Value string
 }
 
-func (t AuthorizedToken) Matches(r *http.Request) bool {
+func (t AuthorizedToken) Matches(r *http.Request) (map[string]any, bool) {
 	header := r.Header.Get("Authorization")
 	if header == "" {
-		return false
+		return nil, false
 	}
 
 	parts := strings.Split(header, " ")
 
 	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-		return false
+		return nil, false
 	}
 
 	if parts[1] != t.Value {
-		return false
+		return nil, false
 	}
 
 	decoded, err := base64.StdEncoding.DecodeString(parts[1])
 	if err != nil {
-		return true
+		return nil, true
 	}
 
 	var data map[string]any
 	if err = json.Unmarshal(decoded, &data); err != nil {
-		return true
+		return nil, true
 	}
 
-	ctx := r.Context()
-
-	for claim, value := range data {
-		ctx = context.WithValue(ctx, claim, value)
-	}
-
-	*r = *r.WithContext(ctx)
-
-	return true
+	return data, true
 }
 
 type AuthorizedClaim struct {
@@ -208,8 +277,8 @@ type AuthorizedClaim struct {
 	Value any
 }
 
-func (c AuthorizedClaim) Matches(r *http.Request) bool {
-	return r.Context().Value(c.Key) == c.Value
+func (c AuthorizedClaim) Matches(r *http.Request, claims map[string]any) bool {
+	return claims[c.Key] == c.Value
 }
 
 type ApiKey struct {

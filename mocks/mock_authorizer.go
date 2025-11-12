@@ -5,43 +5,45 @@
 package mocks
 
 import (
-	gomock "github.com/golang/mock/gomock"
 	http "net/http"
 	reflect "reflect"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
-// MockAuthorizer is a mock of Authorizer interface
+// MockAuthorizer is a mock of Authorizer interface.
 type MockAuthorizer struct {
 	ctrl     *gomock.Controller
 	recorder *MockAuthorizerMockRecorder
 }
 
-// MockAuthorizerMockRecorder is the mock recorder for MockAuthorizer
+// MockAuthorizerMockRecorder is the mock recorder for MockAuthorizer.
 type MockAuthorizerMockRecorder struct {
 	mock *MockAuthorizer
 }
 
-// NewMockAuthorizer creates a new mock instance
+// NewMockAuthorizer creates a new mock instance.
 func NewMockAuthorizer(ctrl *gomock.Controller) *MockAuthorizer {
 	mock := &MockAuthorizer{ctrl: ctrl}
 	mock.recorder = &MockAuthorizerMockRecorder{mock}
 	return mock
 }
 
-// EXPECT returns an object that allows the caller to indicate expected use
+// EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockAuthorizer) EXPECT() *MockAuthorizerMockRecorder {
 	return m.recorder
 }
 
-// Authorize mocks base method
-func (m *MockAuthorizer) Authorize(arg0 *http.Request) error {
+// Authorize mocks base method.
+func (m *MockAuthorizer) Authorize(arg0 *http.Request) (map[string]interface{}, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Authorize", arg0)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(map[string]interface{})
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// Authorize indicates an expected call of Authorize
+// Authorize indicates an expected call of Authorize.
 func (mr *MockAuthorizerMockRecorder) Authorize(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Authorize", reflect.TypeOf((*MockAuthorizer)(nil).Authorize), arg0)

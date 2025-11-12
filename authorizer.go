@@ -1,7 +1,6 @@
 package authorizer
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -27,64 +26,9 @@ func WithNotary(notary Notary) opt {
 	}
 }
 
-func IncludeIssuer() opt {
-	return IncludeClaimAs(issKey, issKey)
-}
-
-func IncludeIssuerAs(key string) opt {
-	return IncludeClaimAs(issKey, key)
-}
-
-func IncludeSubject() opt {
-	return IncludeClaimAs(subKey, subKey)
-}
-
-func IncludeSubjectAs(key string) opt {
-	return IncludeClaimAs(subKey, key)
-}
-
-func IncludeAudience() opt {
-	return IncludeClaimAs(audKey, audKey)
-}
-
-func IncludeAudienceAs(key string) opt {
-	return IncludeClaimAs(audKey, key)
-}
-
-func IncludeExpiration() opt {
-	return IncludeClaimAs(expKey, expKey)
-}
-
-func IncludeExpirationAs(key string) opt {
-	return IncludeClaimAs(expKey, key)
-}
-
-func IncludeClaim(key string) opt {
-	return IncludeClaimAs(key, key)
-}
-
-func IncludeClaims(pairs ...string) opt {
-	return func(a *authorizer) {
-		for _, pair := range pairs {
-			if parts := strings.Split(pair, ":"); len(parts) == 2 {
-				IncludeClaimAs(parts[0], parts[1])(a)
-			}
-		}
-	}
-}
-
-func IncludeClaimAs(from string, to string) opt {
-	return func(a *authorizer) {
-		if from != "" && to != "" {
-			a.ClaimMapping[to] = from
-		}
-	}
-}
-
 func New(opts ...opt) *authorizer {
 	auth := &authorizer{
-		Notary:       NewNotary(),
-		ClaimMapping: map[string]string{},
+		Notary: NewNotary(),
 	}
 
 	for _, opt := range opts {
@@ -100,41 +44,22 @@ type Notary interface {
 
 type authorizer struct {
 	Notary
-	ClaimMapping map[string]string
 }
 
-func (a *authorizer) Authorize(r *http.Request) error {
+func (a *authorizer) Authorize(r *http.Request) (map[string]any, error) {
 
 	header := r.Header["Authorization"]
 	if len(header) == 0 {
-		return ErrMissingAuthorizationHeader
+		return nil, ErrMissingAuthorizationHeader
 	}
 
 	parts := strings.Split(header[0], " ")
 
 	if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-		return ErrInvalidAuthorizationHeader
+		return nil, ErrInvalidAuthorizationHeader
 	}
 
-	data, err := a.Notary.Notarize(parts[1])
-	if err != nil {
-		return err
-	}
-
-	return a.updateContext(r, data)
-}
-
-func (a *authorizer) updateContext(r *http.Request, data map[string]any) error {
-
-	ctx := r.Context()
-
-	for key, claim := range a.ClaimMapping {
-		ctx = context.WithValue(ctx, key, data[claim])
-	}
-
-	*r = *r.WithContext(ctx)
-
-	return nil
+	return a.Notary.Notarize(parts[1])
 }
 
 func NoopAuthorizer() *noopAuthorizer {
@@ -143,6 +68,6 @@ func NoopAuthorizer() *noopAuthorizer {
 
 type noopAuthorizer struct{}
 
-func (a *noopAuthorizer) Authorize(r *http.Request) error {
-	return nil
+func (a *noopAuthorizer) Authorize(r *http.Request) (map[string]any, error) {
+	return nil, nil
 }
