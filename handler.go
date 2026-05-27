@@ -1,9 +1,14 @@
 package authorizer
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 )
@@ -34,6 +39,14 @@ func WithAuthorizedTokens(values ...string) handlerOpt {
 	return func(h *handler) {
 		for _, value := range values {
 			h.AuthorizedTokens = append(h.AuthorizedTokens, AuthorizedToken{value})
+		}
+	}
+}
+
+func WithSigningTokens(tokens ...string) handlerOpt {
+	return func(h *handler) {
+		for _, token := range tokens {
+			h.SigningTokens = append(h.SigningTokens, SigningToken{token})
 		}
 	}
 }
@@ -148,6 +161,7 @@ type handler struct {
 	AuthorizedTokens     []AuthorizedToken
 	AuthorizedClaims     []AuthorizedClaim
 	ApiKeys              []ApiKey
+	SigningTokens        []SigningToken
 	ClaimMapping         map[string]string
 }
 
@@ -185,6 +199,13 @@ func (h *handler) Serve(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	for _, token := range h.SigningTokens {
+		if token.Matches(r) {
+			h.Handler.ServeHTTP(w, r)
+			return
+		}
+	}
+
 	claims, err := h.Authorizer.Authorize(r)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -204,8 +225,9 @@ func (h *handler) Serve(w http.ResponseWriter, r *http.Request) {
 	hasCreds := len(h.BasicAuthCredentials) > 0
 	hasTokens := len(h.AuthorizedTokens) > 0
 	hasClaims := len(h.AuthorizedClaims) > 0
+	hasSigningTokens := len(h.SigningTokens) > 0
 
-	if hasCreds || hasTokens || hasClaims {
+	if hasCreds || hasTokens || hasClaims || hasSigningTokens {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -292,4 +314,31 @@ func (k ApiKey) Matches(r *http.Request) bool {
 	}
 
 	return header == k.Value
+}
+
+type SigningToken struct {
+	Token string
+}
+
+func (t SigningToken) Matches(r *http.Request) bool {
+	sig := r.Header.Get("X-Signature")
+	if sig == "" {
+		return false
+	}
+
+	var body []byte
+	if r.Body != nil {
+		var err error
+		body, err = io.ReadAll(r.Body)
+		if err != nil {
+			return false
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+	}
+
+	mac := hmac.New(sha256.New, []byte(t.Token))
+	mac.Write(body)
+	expected := hex.EncodeToString(mac.Sum(nil))
+
+	return hmac.Equal([]byte(sig), []byte(expected))
 }

@@ -1,10 +1,15 @@
 package authorizer_test
 
 import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -191,6 +196,65 @@ var _ = Describe("Handler", func() {
 			Context("when the authorizer succeeds", func() {
 				BeforeEach(func() {
 					mockAuthorizer.EXPECT().Authorize(req).Return(nil, nil)
+				})
+
+				Context("it forwards the request to the handler", func() {
+					BeforeEach(func() {
+						mockHandler.EXPECT().ServeHTTP(rec, req)
+					})
+
+					It("succeeds", func() {
+						Expect(rec.Result().StatusCode).To(Equal(http.StatusOK))
+					})
+				})
+			})
+		})
+
+		Context("when a signing token is configured", func() {
+			var body string
+
+			BeforeEach(func() {
+				body = `{"key":"value"}`
+
+				handler = authorizer.NewHandler(
+					newLogger(),
+					mockHandler,
+					authorizer.WithSigningTokens("secret"),
+				)
+			})
+
+			Context("when the signature header is missing", func() {
+				BeforeEach(func() {
+					req, err = http.NewRequest("POST", "http://localhost", strings.NewReader(body))
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				It("responds with Unauthorized", func() {
+					Expect(rec.Result().StatusCode).To(Equal(http.StatusUnauthorized))
+				})
+			})
+
+			Context("when the signature does not match", func() {
+				BeforeEach(func() {
+					req, err = http.NewRequest("POST", "http://localhost", strings.NewReader(body))
+					Expect(err).NotTo(HaveOccurred())
+					req.Header.Set("X-Signature", "invalidsignature")
+				})
+
+				It("responds with Unauthorized", func() {
+					Expect(rec.Result().StatusCode).To(Equal(http.StatusUnauthorized))
+				})
+			})
+
+			Context("when the signature matches", func() {
+				BeforeEach(func() {
+					mac := hmac.New(sha256.New, []byte("secret"))
+					mac.Write([]byte(body))
+					sig := hex.EncodeToString(mac.Sum(nil))
+
+					req, err = http.NewRequest("POST", "http://localhost", bytes.NewBufferString(body))
+					Expect(err).NotTo(HaveOccurred())
+					req.Header.Set("X-Signature", sig)
 				})
 
 				Context("it forwards the request to the handler", func() {
