@@ -281,17 +281,26 @@ func (t AuthorizedToken) Matches(r *http.Request) (map[string]any, bool) {
 		return nil, false
 	}
 
-	decoded, err := base64.StdEncoding.DecodeString(parts[1])
-	if err != nil {
-		return nil, true
-	}
-
 	var data map[string]any
-	if err = json.Unmarshal(decoded, &data); err != nil {
+	if err := t.decode(parts[1], &data); err != nil {
 		return nil, true
 	}
 
 	return data, true
+}
+
+func (t AuthorizedToken) decode(encoded string, value any) error {
+
+	if l := len(encoded) % 4; l > 0 {
+		encoded += strings.Repeat("=", 4-l)
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return err
+	}
+
+	return json.Unmarshal(decoded, value)
 }
 
 type AuthorizedClaim struct {

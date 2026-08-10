@@ -43,7 +43,7 @@ var _ = Describe("Handler", func() {
 			mockHandler,
 			authorizer.WithAuthorizer(mockAuthorizer),
 			authorizer.WithBasicAuthCredential("user", "pass"),
-			authorizer.WithAuthorizedTokens("token", "eyJjbGFpbSI6InZhbHVlIn0K"),
+			authorizer.WithAuthorizedTokens("token", "eyJjbGFpbSI6InZhbHVlIn0K", "eyJjbGFpbSI6InYifQ"),
 			authorizer.WithAuthorizedClaim("key", "value"),
 			authorizer.IncludeClaimInContext("key"),
 			authorizer.IncludeClaimInContext("claim"),
@@ -132,6 +132,26 @@ var _ = Describe("Handler", func() {
 
 				It("contains the correct claims", func() {
 					Expect(req.Context().Value("claim")).To(Equal("value"))
+				})
+			})
+		})
+
+		Context("when authorized token matches with claims requiring padding", func() {
+			BeforeEach(func() {
+				req.Header.Set("Authorization", "bearer eyJjbGFpbSI6InYifQ")
+			})
+
+			Context("it forwards the request to the handler", func() {
+				BeforeEach(func() {
+					mockHandler.EXPECT().ServeHTTP(rec, req)
+				})
+
+				It("succeeds", func() {
+					Expect(rec.Result().StatusCode).To(Equal(http.StatusOK))
+				})
+
+				It("contains the correct claims", func() {
+					Expect(req.Context().Value("claim")).To(Equal("v"))
 				})
 			})
 		})
