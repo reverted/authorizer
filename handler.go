@@ -330,8 +330,15 @@ type SigningToken struct {
 }
 
 func (t SigningToken) Matches(r *http.Request) bool {
+
 	sig := r.Header.Get("X-Signature")
+	sig = strings.TrimPrefix(sig, "sha256=")
 	if sig == "" {
+		return false
+	}
+
+	timestamp := r.Header.Get("X-Timestamp")
+	if timestamp == "" {
 		return false
 	}
 
@@ -345,8 +352,17 @@ func (t SigningToken) Matches(r *http.Request) bool {
 		r.Body = io.NopCloser(bytes.NewReader(body))
 	}
 
+	bodyHash := sha256.Sum256(body)
+	canonical := strings.Join([]string{
+		r.Method,
+		r.URL.RequestURI(),
+		timestamp,
+		hex.EncodeToString(bodyHash[:]),
+	}, "\n")
+
 	mac := hmac.New(sha256.New, []byte(t.Token))
-	mac.Write(body)
+	mac.Write([]byte(canonical))
+
 	expected := hex.EncodeToString(mac.Sum(nil))
 
 	return hmac.Equal([]byte(sig), []byte(expected))
