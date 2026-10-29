@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type Logger interface {
@@ -366,4 +367,33 @@ func (t SigningToken) Matches(r *http.Request) bool {
 	expected := hex.EncodeToString(mac.Sum(nil))
 
 	return hmac.Equal([]byte(sig), []byte(expected))
+}
+
+func SignRequest(r *http.Request, token string) error {
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+
+	var body []byte
+	if r.Body != nil {
+		var err error
+		body, err = io.ReadAll(r.Body)
+		if err != nil {
+			return err
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+	}
+
+	bodyHash := sha256.Sum256(body)
+	canonical := strings.Join([]string{
+		r.Method,
+		r.URL.RequestURI(),
+		timestamp,
+		hex.EncodeToString(bodyHash[:]),
+	}, "\n")
+
+	mac := hmac.New(sha256.New, []byte(token))
+	mac.Write([]byte(canonical))
+
+	r.Header.Set("X-Signature", "sha256="+hex.EncodeToString(mac.Sum(nil)))
+	r.Header.Set("X-Timestamp", timestamp)
+	return nil
 }

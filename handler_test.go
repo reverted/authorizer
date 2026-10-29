@@ -2,15 +2,11 @@ package authorizer_test
 
 import (
 	"bytes"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -272,21 +268,7 @@ var _ = Describe("Handler", func() {
 					req, err = http.NewRequest("POST", "http://localhost", bytes.NewBufferString(body))
 					Expect(err).NotTo(HaveOccurred())
 
-					timestamp := time.Now().UTC().Format(time.RFC3339)
-
-					bodyHash := sha256.Sum256([]byte(body))
-					canonical := strings.Join([]string{
-						req.Method,
-						req.URL.RequestURI(),
-						timestamp,
-						hex.EncodeToString(bodyHash[:]),
-					}, "\n")
-
-					mac := hmac.New(sha256.New, []byte("secret"))
-					mac.Write([]byte(canonical))
-
-					req.Header.Set("X-Signature", "sha256="+hex.EncodeToString(mac.Sum(nil)))
-					req.Header.Set("X-Timestamp", timestamp)
+					authorizer.SignRequest(req, "secret")
 				})
 
 				Context("it forwards the request to the handler", func() {
